@@ -1,0 +1,18 @@
+program esame;
+var a1 , a2, somma,
+    a3, a4,
+    a5, a6, divisione,
+    base, esponente,
+    fibo integer;
+    ktm boolean;
+begin
+switch(a1)
+begin
+case 1:
+a1:=1
+break;
+default:
+a2 :=1
+break;
+end;
+end.

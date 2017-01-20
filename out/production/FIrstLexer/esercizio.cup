@@ -1,0 +1,310 @@
+import java_cup.runtime.*;
+import com.scalified.tree.*;
+import com.scalified.tree.multinode.*;
+import java.util.List;
+import java.util.ArrayList;
+import Visitor.*;
+
+parser code {:
+    // Connect this parser to a scanner!
+    Scanner s;
+    parser(Scanner s, String k){ this.s=s; }
+
+   public VisitableNode<String> makeNode(String name, VisitableNode<String> ... childrens){
+
+           VisitableNode<String> toReturn = new VisitableNode<String>(name);
+
+           for(int i = 0; i < childrens.length; i ++){
+               toReturn.add(childrens[i]);
+           }
+
+           return toReturn;
+       }
+
+     public VisitableNode<String> makeNode(String name, ArrayList<VisitableNode<String>> childrens){
+
+               VisitableNode<String> toReturn = new VisitableNode<String>(name);
+
+                for (VisitableNode<String> node : childrens)
+                   toReturn.add(node);
+
+               return toReturn;
+           }
+
+            public void syntax_error(Symbol cur_token){
+            //recupera riga e colonna dell'errore
+            int row = cur_token.left+1;
+            int col = cur_token.right;
+           System.out.println("L'errore si trova in riga "+ row +" e in colonna "+col+".");
+             }
+
+
+:}
+
+/* define how to connect to the scanner! */
+init with {:/* s.init();*/ :};
+scan with {: return s.next_token(); :};
+
+
+/* Terminals (tokens returned by the scanner). */
+terminal String     LPAR, RPAR, MINUS, UMINUS,
+                    PROGRAM,IDENTIFIER, INSTRUCTION_SEPARATOR, END_PROGRAM, VAR, PROCEDURE,
+                    INTEGER, BOOLEAN, BEGIN, WRITE, READ, IF, THEN, WHILE, DO, END, ASSIGN,
+                    RELOP, ADD_OPERATOR, MULT_OPERATOR, NOT, TRUE, FALSE, SEPARATOR, ELSE,
+                    INTEGER_CONSTANT, STRING_CONSTANT, CHARACTER_CONSTANT;
+
+/* Non terminals */
+non terminal VisitableNode<String>  program_n, block, variable_declaration_part, statement_part,
+                               procedure_declaration, simple_block, compound_statement, statement,
+                               simple_statement, structured_statement, assignment_statement, read_statement, procedure_statement, write_statement, expression ,
+                               output_value ,if_statement ,while_statement ,simple_expression ,variable_declaration;
+
+non terminal String constant,  input_variable, constant_identifier, variable, variable_identifier, procedure_identifier, adding_operator, simple_type;
+//nonterminal ArrayList<VisitableNode<String>>  statements, procedure_declaration_part, output_values, identifiers, variables, read_variables;
+
+
+/* Precedences */
+precedence left ADD_OPERATOR, MINUS;
+precedence left MULT_OPERATOR;
+precedence left ASSIGN, READ, WRITE;
+precedence left ELSE;
+precedence left RELOP;
+precedence left UMINUS;
+
+
+program_n ::= PROGRAM IDENTIFIER:attr INSTRUCTION_SEPARATOR block:ptr END_PROGRAM {:
+                                       VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(attr));
+                                        RESULT= makeNode(Constant.PROGRAM_NODE, id_node, ptr);
+                                        NodeVisitor visitor = new NodeVisitor();
+                                        visitor.visit(RESULT);
+                                        visitor.saveFileXML();
+                                        System.out.println("Albero costruito correttamente, vedi file.xml");
+
+:}
+| error {:System.out.println("L'albero non può esser costruito poichè è presente un errore");
+        System.exit(0);:}
+;
+
+block ::= variable_declaration_part:node1 procedure_declaration_part:nodes2 statement_part:node3 {:
+                                                 VisitableNode<String> proc_node = makeNode(Constant.PROC_DECL_PART, nodes2);
+                                                 RESULT = makeNode(Constant.BLOCK_OP,node1, proc_node,node3);
+
+                                                 :}
+;
+
+variable_declaration_part ::= VAR variable_declaration:node1 INSTRUCTION_SEPARATOR variables:list {:
+                                         if(list!=null){
+                                          list.add(0,node1);
+                                          RESULT = makeNode(Constant.VAR_DECL_PART_NODE,list);}
+                                          else {
+                                         RESULT = makeNode(Constant.VAR_DECL_PART_NODE,node1);}
+
+
+
+:}
+                                | /* epsilon */
+;
+
+variables ::= variable_declaration:node1 INSTRUCTION_SEPARATOR variables:node2 {:
+                                       RESULT = new ArrayList<VisitableNode<String>>();
+                                     if(node2!=null)
+                                    ((ArrayList<VisitableNode<String>>) RESULT).addAll(node2);
+                                     ((ArrayList<VisitableNode<String>>) RESULT).add(0,node1);
+
+
+:}
+                | /* epsilon */
+;
+
+variable_declaration ::= IDENTIFIER:attr identifiers:ptr_sts simple_type:type {:
+                                         VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(attr));
+                                         if(ptr_sts!=null){
+                                         ptr_sts.add(0,makeNode(type));
+                                         ptr_sts.add(1,id_node);
+                                         RESULT = makeNode(Constant.VAR_DECL_NODE,ptr_sts);}
+                                         else {
+                                          RESULT = makeNode(Constant.VAR_DECL_NODE, makeNode(type), id_node);
+                                         }
+
+:}
+;
+
+identifiers ::= SEPARATOR IDENTIFIER:attr identifiers:node1 {:
+                                    RESULT = new ArrayList<VisitableNode<String>>();
+                                    VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(attr));
+
+                                    ((ArrayList<VisitableNode<String>>) RESULT).add(id_node);
+                                     if(node1!=null)
+                                                                        ((ArrayList<VisitableNode<String>>) RESULT).addAll(node1);
+:}                  | /* epsilon */
+;
+
+simple_type ::= INTEGER {: RESULT = "integer"; :}  | BOOLEAN {: RESULT = "boolean"; :}
+;
+
+procedure_declaration_part ::= procedure_declaration:node1 INSTRUCTION_SEPARATOR procedure_declaration_part:node2
+    {:                                       RESULT = new ArrayList<VisitableNode<String>>();
+                                            ((ArrayList<VisitableNode<String>>) RESULT).add(node1);
+                                                if(node2!=null)
+                                                                                        ((ArrayList<VisitableNode<String>>) RESULT).addAll(node2);
+                                        :}
+                                | /* epsilon */
+;
+
+procedure_declaration ::= PROCEDURE IDENTIFIER:value INSTRUCTION_SEPARATOR simple_block:node {: VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(value));
+                                                                       RESULT = makeNode(Constant.PROC_NODE, id_node, node); :}
+;
+
+simple_block ::= variable_declaration_part:node1 statement_part:node2 {: RESULT = makeNode(Constant.SIMPLE_BLOCK_NODE, node1, node2); :}
+;
+
+statement_part ::= compound_statement:node {: RESULT = node; :}
+;
+//Aggiunto INSTRUCTION_SEPARATOR
+compound_statement ::= BEGIN statement:ptr_st statements:ptr_sts END
+                                                    {:
+                                                    if(ptr_sts!=null){
+                                                          ptr_sts.add(0,ptr_st);
+                                                          RESULT = makeNode(Constant.COMP_NODE, ptr_sts);}
+                                                         else
+                                                            RESULT = makeNode(Constant.COMP_NODE, ptr_st);
+
+
+                                                    :}
+;
+
+statements ::= INSTRUCTION_SEPARATOR statement:node1 statements:node2
+                                    {:
+                                        RESULT = new ArrayList<VisitableNode<String>>();
+
+                                        ((ArrayList<VisitableNode<String>>) RESULT).add(node1);
+                                          if(node2!=null)
+                                                                                ((ArrayList<VisitableNode<String>>) RESULT).addAll(node2);
+                                    :}
+                |/* epsilon */
+;
+
+statement ::=  simple_statement:ptr {: RESULT = ptr; :}
+                | structured_statement:ptr {: RESULT = ptr; :}
+;
+
+simple_statement ::=  assignment_statement:ptr {: RESULT = ptr; :}
+                    | read_statement:ptr {: RESULT = ptr; :}
+                    | procedure_statement:ptr {: RESULT = ptr; :}
+                    | write_statement:ptr {: RESULT = ptr; :}
+;
+
+assignment_statement ::= variable:value ASSIGN expression:node {: VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(value));
+                                            RESULT = makeNode(Constant.ASSIGN_OP, id_node, node);
+ :}
+;
+
+read_statement ::= READ LPAR input_variable:ptr_st read_variables:ptr_sts RPAR
+                                    {:
+                                        if(ptr_sts!=null){
+                                        ((ArrayList<VisitableNode<String>>)ptr_sts).add(0,makeNode(Constant.ID_NODE, makeNode(ptr_st)));
+                                        RESULT = makeNode(Constant.READ_NODE, ptr_sts);}
+                                        else
+                                    RESULT = makeNode(Constant.READ_NODE, makeNode(Constant.ID_NODE, makeNode(ptr_st)));
+
+
+                                    :}
+;
+
+read_variables ::= SEPARATOR input_variable:ptr1 read_variables:ptr2
+                                            {:
+                                                RESULT = new ArrayList<VisitableNode<String>>();
+
+                                                ((ArrayList<VisitableNode<String>>) RESULT).add(0,makeNode(Constant.ID_NODE,makeNode(ptr1)));
+                                                 if(ptr2!=null)
+
+                                                                                                ((ArrayList<VisitableNode<String>>) RESULT).addAll(ptr2);
+                                            :}
+                | /* empty */
+;
+
+input_variable ::= variable:ptr1
+            {:
+                RESULT = ptr1;
+            :}
+;
+
+procedure_statement ::= procedure_identifier:value {: VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(value));
+                                        RESULT = makeNode(Constant.CALL_OP_NODE, id_node); :}
+;
+
+procedure_identifier ::= IDENTIFIER:v {: RESULT = v; :}
+;
+
+
+write_statement ::= WRITE LPAR output_value:node1 output_values:node2 RPAR {:
+                                                     node2.add(0,node1);
+                                                     RESULT = makeNode(Constant.WRITE_NODE, node2);
+
+:}
+;
+
+output_values ::= SEPARATOR output_value:node1 output_values:node2 {:
+                                        RESULT = new ArrayList<VisitableNode<String>>();
+
+                                            ((ArrayList<VisitableNode<String>>) RESULT).add(0,node1);
+                                             if(node2!=null)
+
+                                                                                        ((ArrayList<VisitableNode<String>>) RESULT).addAll(node2);
+
+                                                                    :}
+                                                                     | /* epsilon */
+;
+
+output_value ::= expression:ptr {: RESULT = ptr;:}
+;
+
+structured_statement ::= compound_statement:v {: RESULT = v; :}
+                        | if_statement:v {: RESULT = v; :}
+                        | while_statement:v {: RESULT = v; :}
+;
+
+if_statement ::= IF expression:node1 THEN  statement:node2 {: RESULT = makeNode(Constant.IF_THEN_NODE, node1, node2); :}
+                 | IF expression:node1 THEN statement:node2 ELSE statement:node3 {: RESULT = makeNode(Constant.IF_THEN_ELSE_NODE, node1, node2, node3);:}
+                 %prec ELSE
+;
+
+while_statement ::= WHILE expression:node1 DO statement:node2 INSTRUCTION_SEPARATOR {:RESULT = makeNode(Constant.WHILE_NODE, node1, node2); :}
+;
+
+expression ::= simple_expression:node {: RESULT = makeNode(Constant.SIMPLE_NODE, node);:}
+                | simple_expression:node1 RELOP:value simple_expression:node2 {: VisitableNode<String> rel_node = makeNode(Constant.REL_NODE, makeNode(value));
+                     RESULT = makeNode(Constant.REL_OP, node1, rel_node, node2);  :}
+;
+
+simple_expression ::= simple_expression:node1 adding_operator:value simple_expression:node2 {: VisitableNode<String> add_node = makeNode(Constant.ADD_NODE, makeNode(value));
+                             RESULT = makeNode(Constant.ADD_OP, node1, add_node, node2); :}
+                        | simple_expression:node1 MULT_OPERATOR:value simple_expression:node2 {: VisitableNode<String> mul_node = makeNode(Constant.MUL_NODE, makeNode(value));
+                                                  RESULT = makeNode(Constant.MUL_OP, node1, mul_node, node2); :}
+                        | variable:value {:  VisitableNode<String> id_node = makeNode(Constant.ID_NODE, makeNode(value));
+                                                RESULT = makeNode(Constant.VAR_NODE, id_node); :}
+                        | constant:value {: VisitableNode<String> constant_node = makeNode(Constant.CONSTANT_NODE, makeNode(value));
+                                            RESULT = makeNode(Constant.CONST_NODE, constant_node);:}
+                        | LPAR expression:node RPAR {: RESULT = makeNode(Constant.EXPR_NODE, node); :}
+                        | NOT expression: node {: RESULT = makeNode(Constant.NOT_NODE, node); :}
+                        | MINUS simple_expression:node {: RESULT = makeNode(Constant.UNARY_MINUS_NODE, node); :} %prec UMINUS
+;
+
+adding_operator ::= ADD_OPERATOR:v {: RESULT = v; :}
+                    | MINUS {: RESULT = "minus"; :}
+;
+
+variable ::= variable_identifier:v {: RESULT = v; :}
+;
+
+variable_identifier ::= IDENTIFIER:v {: RESULT = v; :}
+;
+
+constant ::= INTEGER_CONSTANT:v      {: RESULT = v; :}
+             | CHARACTER_CONSTANT:v {: RESULT= v ; :}
+             | STRING_CONSTANT:v {: RESULT= v ; :}
+             | constant_identifier:value  {: RESULT= value ; :}
+;
+
+constant_identifier ::= TRUE {: RESULT= "true"; :}
+                        | FALSE {: RESULT= "false"; :};

@@ -1,0 +1,21 @@
+program prova;
+var a1  , a2, b  integer;
+b1, c,p   boolean ;
+c1  ,  c2   integer;
+procedure proc1;
+var a1 integer;
+a,b1 boolean;
+begin
+a2 := a1 + 25  &&  -4;
+<-( a1 );
+proc1 ;
+if a1 > a1 then
+b := 1
+else if not a1 then
+while -(a && b1) do c := true;
+else ->(p, c)
+end;
+begin
+if a1 > a1 then
+b:=1
+end.
